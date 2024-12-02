@@ -83,7 +83,7 @@ func QueryContext(ctx context.Context, params *QueryParam) error {
 		params.Logger = log.Default()
 	}
 	// Create a new client
-	client, err := newClient(!params.DisableIPv4, !params.DisableIPv6, params.Logger)
+	client, err := newClient(!params.DisableIPv4, !params.DisableIPv6, params.Logger, params.Interface)
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ type client struct {
 
 // NewClient creates a new mdns Client that can be used to query
 // for records
-func newClient(v4 bool, v6 bool, logger *log.Logger) (*client, error) {
+func newClient(v4 bool, v6 bool, logger *log.Logger, iface *net.Interface) (*client, error) {
 	if !v4 && !v6 {
 		return nil, fmt.Errorf("Must enable at least one of IPv4 and IPv6 querying")
 	}
@@ -158,6 +158,7 @@ func newClient(v4 bool, v6 bool, logger *log.Logger) (*client, error) {
 	var err error
 
 	// Establish unicast connections
+	log.Printf("[INFO] mdns: Binding to unicast")
 	if v4 {
 		uconn4, err = net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 		if err != nil {
@@ -165,7 +166,7 @@ func newClient(v4 bool, v6 bool, logger *log.Logger) (*client, error) {
 		}
 	}
 	if v6 {
-		uconn6, err = net.ListenUDP("udp6", &net.UDPAddr{IP: net.IPv6zero, Port: 0})
+		uconn6, err = net.ListenUDP("udp6", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 		if err != nil {
 			logger.Printf("[ERR] mdns: Failed to bind to udp6 port: %v", err)
 		}
@@ -175,14 +176,15 @@ func newClient(v4 bool, v6 bool, logger *log.Logger) (*client, error) {
 	}
 
 	// Establish multicast connections
+	log.Printf("[INFO] mdns: Binding to multicast")
 	if v4 {
-		mconn4, err = net.ListenMulticastUDP("udp4", nil, ipv4Addr)
+		mconn4, err = net.ListenMulticastUDP("udp4", iface, ipv4Addr)
 		if err != nil {
 			logger.Printf("[ERR] mdns: Failed to bind to udp4 port: %v", err)
 		}
 	}
 	if v6 {
-		mconn6, err = net.ListenMulticastUDP("udp6", nil, ipv6Addr)
+		mconn6, err = net.ListenMulticastUDP("udp6", iface, ipv6Addr)
 		if err != nil {
 			logger.Printf("[ERR] mdns: Failed to bind to udp6 port: %v", err)
 		}
@@ -190,6 +192,7 @@ func newClient(v4 bool, v6 bool, logger *log.Logger) (*client, error) {
 	if mconn4 == nil && mconn6 == nil {
 		return nil, fmt.Errorf("failed to bind to any multicast udp port")
 	}
+	log.Printf("[INFO] mdns: done binding")
 
 	// Check that unicast and multicast connections have been made for IPv4 and IPv6
 	// and disable the respective protocol if not.

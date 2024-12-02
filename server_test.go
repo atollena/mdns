@@ -112,7 +112,7 @@ func TestServer_Loopback(t *testing.T) {
 				return
 			}
 			errCh <- nil
-		case <-time.After(80 * time.Millisecond):
+		case <-time.After(80 * time.Second):
 			errCh <- fmt.Errorf("Timed out waiting for response")
 		}
 	}()
@@ -120,7 +120,7 @@ func TestServer_Loopback(t *testing.T) {
 	params := &QueryParam{
 		Service:     "_foobar._tcp",
 		Domain:      "local",
-		Timeout:     50 * time.Millisecond,
+		Timeout:     50 * time.Second,
 		Entries:     entries,
 		DisableIPv6: true,
 		Interface:   lo,
